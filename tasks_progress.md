@@ -9,8 +9,8 @@
 - [x] **T07**: Anomaly scoring logic
 - [x] **T08**: Before/after image export
 - [x] **T09**: Seed script (pipeline → DB)
-- [ ] **T10**: FastAPI skeleton + CORS
-- [ ] **T11**: `/api/sites` endpoints
+- [x] **T10**: FastAPI skeleton + CORS
+- [x] **T11**: `/api/sites` endpoints
 - [ ] **T12**: Deploy backend (Railway/Render)
 - [ ] **T13**: Next.js scaffold + Tailwind
 - [ ] **T14**: MapView + SiteMarker
