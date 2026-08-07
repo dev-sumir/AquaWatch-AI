@@ -1,42 +1,36 @@
-# AquaWatch AI
+# AquaWatch AI 🌊
 
-## Problem
-Water contamination and illegal land-cover change near waterways go undetected for long periods because monitoring depends on occasional citizen complaints or manual inspection.
+An intelligent, interactive satellite-data platform for real-time water pollution monitoring, built for AlgoOlympia 2026.
 
-## Solution
-A web platform that pulls Sentinel-2 satellite imagery for a set of monitored sites, computes water/vegetation health indices over time, detects statistically significant deviations, and presents each site's status as a map pin with a risk score.
+## Architecture
 
-## How It Works
-- Sentinel-2 imagery is queried and processed via Google Earth Engine.
-- NDWI and NDVI are calculated and compared to historical baselines to produce anomaly risk scores.
-- Data is stored in Postgres and served via a FastAPI backend.
-- A Next.js frontend displays the results on an interactive map and detailed site dashboard.
+AquaWatch AI has evolved from a static dashboard into a fully dynamic analytics engine.
+- **Frontend**: Next.js 14, TailwindCSS, React-Leaflet
+- **Backend**: FastAPI, Google Earth Engine Python API, Pandas
+- **No Database Needed**: All analytics, historical baseline computations, and satellite imagery exports are generated **on-the-fly** by pinging Google Earth Engine dynamically.
 
-## Tech Stack
-- Frontend: Next.js, Tailwind CSS, React-Leaflet / Mapbox
-- Backend: FastAPI, SQLAlchemy, PostgreSQL
-- AI/Data: Google Earth Engine, Pandas, Numpy
+## Features
+- **Global Interactive Map**: Click *anywhere* on a water body globally.
+- **Dynamic Risk Engine**: Instantly computes 365-day NDWI baselines and compares them against current 7-day windows using Z-Score statistical anomaly detection.
+- **Overlapping Image Slider**: Seamlessly scrub a slider to peel back real-time 2026 Sentinel-2 imagery and reveal the 2025 baseline underneath.
+- **PDF Export**: Download professional reports natively.
 
-## Live Demo
-- Frontend: [URL]
-- Backend API docs: [URL]/docs
+## How to Run Locally
 
-## Screenshots
-*(Add screenshots here)*
-
-## Team
-- Dev A (Backend Lead)
-- Dev B (AI/Data Lead)
-- Dev C (Frontend Lead)
-- Dev D (Frontend/Integration + Demo Lead)
-
-## Data Sources
-- Sentinel-2 Level-2A surface reflectance imagery (via Google Earth Engine)
-
-## Running Locally
-**(Add instructions)**
-
-## What We'd Build Next
-- Expand to more indices (e.g., chlorophyll, suspended matter).
-- Allow user-defined AOIs.
-- Continuous model training and evaluation.
+1. **Clone the Repo**
+2. **Backend**:
+   ```bash
+   cd backend
+   python -m venv venv
+   .\venv\Scripts\activate
+   pip install -r requirements.txt
+   # Set up your Google Earth Engine service account credentials in a .env file!
+   python -m uvicorn main:app --reload --port 8000
+   ```
+3. **Frontend**:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+4. Open `http://localhost:3000` and click anywhere on the map!

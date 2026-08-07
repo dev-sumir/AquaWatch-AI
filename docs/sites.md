@@ -2,20 +2,20 @@
 
 This document contains the 3 pre-selected real-world sites for our satellite data pipeline, fulfilling the requirement for verifiable pollution events and stable control sites.
 
-## 1. Buddha Nullah Confluence (Sutlej River)
+## 1. Yamuna River (Okhla/Kalindi Kunj)
 - **Status:** Flagged / High Risk (Known Pollution Event)
-- **Location:** Confluence point near Kasabad/Walipur Kalan, Ludhiana, Punjab.
-- **Coordinates:** `30.937250192168428, 75.69302325146687`
-- **Description:** This exact coordinate pinpoints the highly polluted waters of the Buddha Nullah merging into the Sutlej River. The stream carries immense loads of industrial effluent and untreated sewage from Ludhiana. We use this site to demonstrate significant water quality anomalies (drastic drops in NDWI) caused by this toxic discharge.
-- **Source:** [Wikipedia: Buddha Nullah](https://en.wikipedia.org/wiki/Buddha_Nullah)
+- **Location:** Delhi, India, near Okhla Barrage.
+- **Coordinates:** `28.567001104525293, 77.2986100208897`
+- **Description:** This exact coordinate pinpoints the heavily polluted waters of the Yamuna River in Delhi. It receives immense loads of industrial effluent and untreated sewage, often leading to toxic white foam. We track drastic drops in NDWI and water quality anomalies here.
+- **Source:** [Wikipedia: Yamuna](https://en.wikipedia.org/wiki/Yamuna)
 
-## 2. Sutlej River at Phillaur
+## 2. Ganges River at Kanpur
 - **Status:** Flagged / Moderate-High Risk
-- **Location:** NH44 Highway Bridge Crossing (Sutlej), between Ludhiana and Phillaur, Punjab.
-- **Coordinates:** `30.98641533999191, 75.77506159068768`
-- **Description:** Positioned exactly at the main river crossing just south of Phillaur, this section captures agricultural runoff and downstream flow. While historically a steady channel, the river here is vulnerable to episodic contamination events, making it an excellent candidate for anomaly tracking.
-- **Source:** Verified via Google Maps / Phillaur region.
-
+- **Location:** Kanpur, Uttar Pradesh, main river crossing.
+- **Coordinates:** `26.47176126173446, 80.37292308432826`
+- **Description:** Positioned at a major crossing over the Ganges in Kanpur, this site is historically vulnerable to severe industrial pollution, particularly from leather tanneries discharging toxic waste. It serves as a key indicator for episodic contamination events.
+- **Source:** Verified via Google Maps / Kanpur region.
+    
 ## 3. Ropar Wetland / Ropar Lake (Control Site)
 - **Status:** Control / Low Risk (Stable)
 - **Location:** Ropar Headworks / Wetland, Rupnagar, Punjab (Upstream Sutlej).

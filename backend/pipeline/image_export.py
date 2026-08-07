@@ -1,26 +1,9 @@
 import ee
-import requests
-import os
 
-def download_image(url, filename):
-    """Downloads an image from a URL to the local filesystem."""
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            with open(filename, 'wb') as f:
-                f.write(response.content)
-            return True
-    except Exception as e:
-        print(f"Failed to download image {filename}: {e}")
-    return False
-
-def export_site_images(site_id, lat, lon, baseline_start, baseline_end, current_start, current_end, output_dir):
+def get_dynamic_image_urls(lat, lon, baseline_start, baseline_end, current_start, current_end):
     """
-    Fetches before and after images for a site and saves them locally.
-    Returns the relative URLs (paths) to the images.
+    Returns the live Earth Engine thumbnail URLs directly.
     """
-    os.makedirs(output_dir, exist_ok=True)
-    
     def get_url(start_date, end_date):
         point = ee.Geometry.Point([lon, lat])
         image = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED') \
@@ -41,24 +24,7 @@ def export_site_images(site_id, lat, lon, baseline_start, baseline_end, current_
         except Exception:
             return None
 
-    # Before image
-    print(f"Exporting baseline image for Site {site_id}...")
     before_url = get_url(baseline_start, baseline_end)
-    before_filename = f"site_{site_id}_before.jpg"
-    before_path = os.path.join(output_dir, before_filename)
-    if before_url and download_image(before_url, before_path):
-        before_rel_url = f"/static/images/{before_filename}"
-    else:
-        before_rel_url = None
-
-    # After image
-    print(f"Exporting current image for Site {site_id}...")
     after_url = get_url(current_start, current_end)
-    after_filename = f"site_{site_id}_after.jpg"
-    after_path = os.path.join(output_dir, after_filename)
-    if after_url and download_image(after_url, after_path):
-        after_rel_url = f"/static/images/{after_filename}"
-    else:
-        after_rel_url = None
 
-    return before_rel_url, after_rel_url
+    return before_url, after_url

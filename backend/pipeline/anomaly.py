@@ -1,10 +1,11 @@
 import pandas as pd
 import numpy as np
 
-def compute_anomaly(df: pd.DataFrame, metric: str = 'ndwi', baseline_days: int = 180, current_days: int = 30):
+def compute_anomaly(df: pd.DataFrame, baseline_days: int = 180, current_days: int = 30):
     """
-    Computes the anomaly score using z-score for a given metric.
-    Assumes df is sorted by date and contains the metric column.
+    Computes the anomaly score using z-score for both NDWI and NDVI.
+    Assumes df is sorted by date and contains 'ndwi' and 'ndvi' columns.
+    Returns the anomaly details for the metric that deviated the most.
     """
     if df.empty or len(df) < 5:
         return {
@@ -13,12 +14,10 @@ def compute_anomaly(df: pd.DataFrame, metric: str = 'ndwi', baseline_days: int =
             'baseline_mean': None,
             'baseline_std': None,
             'current_value': None,
-            'metric_used': metric,
+            'metric_used': 'ndwi',
             'verdict_text': 'Insufficient data to compute anomaly score.'
         }
     
-    # We define "current" as the last `current_days` in the dataset
-    # and "baseline" as the `baseline_days` prior to the current period.
     df['date'] = pd.to_datetime(df['date'])
     latest_date = df['date'].max()
     
@@ -35,21 +34,31 @@ def compute_anomaly(df: pd.DataFrame, metric: str = 'ndwi', baseline_days: int =
             'baseline_mean': None,
             'baseline_std': None,
             'current_value': None,
-            'metric_used': metric,
+            'metric_used': 'ndwi',
             'verdict_text': 'Insufficient baseline data to compute anomaly score.'
         }
         
-    baseline_mean = baseline_period[metric].mean()
-    baseline_std = baseline_period[metric].std()
-    current_mean = current_period[metric].mean()
-    
-    if baseline_std == 0 or pd.isna(baseline_std):
-        # Prevent division by zero
-        baseline_std = 0.01
+    def get_z_score(metric):
+        b_mean = baseline_period[metric].mean()
+        b_std = baseline_period[metric].std()
+        c_mean = current_period[metric].mean()
+        if b_std == 0 or pd.isna(b_std):
+            b_std = 0.01
+        return (c_mean - b_mean) / b_std, b_mean, b_std, c_mean
         
-    z_score = (current_mean - baseline_mean) / baseline_std
+    z_ndwi, b_mean_ndwi, b_std_ndwi, c_mean_ndwi = get_z_score('ndwi')
+    z_ndvi, b_mean_ndvi, b_std_ndvi, c_mean_ndvi = get_z_score('ndvi')
     
-    # risk_score = min(100, abs(z) × 25)
+    # Pick the metric with the most significant deviation
+    if abs(z_ndvi) > abs(z_ndwi):
+        primary_metric = 'ndvi'
+        z_score = z_ndvi
+        b_mean, b_std, c_mean = b_mean_ndvi, b_std_ndvi, c_mean_ndvi
+    else:
+        primary_metric = 'ndwi'
+        z_score = z_ndwi
+        b_mean, b_std, c_mean = b_mean_ndwi, b_std_ndwi, c_mean_ndwi
+    
     score = min(100.0, abs(z_score) * 25.0)
     
     if score < 30:
@@ -59,11 +68,10 @@ def compute_anomaly(df: pd.DataFrame, metric: str = 'ndwi', baseline_days: int =
     else:
         severity = "High"
         
-    # Generate verdict text
-    delta_pct = ((current_mean - baseline_mean) / abs(baseline_mean)) * 100 if baseline_mean != 0 else 0
-    direction = "dropped" if current_mean < baseline_mean else "increased"
+    delta_pct = ((c_mean - b_mean) / abs(b_mean)) * 100 if b_mean != 0 else 0
+    direction = "dropped" if c_mean < b_mean else "increased"
     
-    metric_name = "Water clarity/levels (NDWI)" if metric == 'ndwi' else "Vegetation health (NDVI)"
+    metric_name = "Water clarity/levels (NDWI)" if primary_metric == 'ndwi' else "Vegetation health (NDVI)"
     
     if severity == "Low":
         verdict = f"No significant change detected. {metric_name} remains within normal historical baseline."
@@ -75,25 +83,9 @@ def compute_anomaly(df: pd.DataFrame, metric: str = 'ndwi', baseline_days: int =
     return {
         'score': round(score, 2),
         'severity': severity,
-        'baseline_mean': baseline_mean,
-        'baseline_std': baseline_std,
-        'current_value': current_mean,
-        'metric_used': metric,
+        'baseline_mean': b_mean,
+        'baseline_std': b_std,
+        'current_value': c_mean,
+        'metric_used': primary_metric,
         'verdict_text': verdict
     }
-
-if __name__ == "__main__":
-    # Test block
-    # Mock a dataframe with a sharp drop to test it
-    dates = pd.date_range(start="2023-01-01", end="2023-07-01", freq="W")
-    # Baseline ~ 0.5
-    values = np.random.normal(loc=0.5, scale=0.05, size=len(dates))
-    df = pd.DataFrame({'date': dates, 'ndwi': values})
-    
-    # Introduce a sharp drop in the last 3 weeks to simulate contamination
-    df.loc[df.index[-3:], 'ndwi'] = [0.1, 0.05, 0.02]
-    
-    result = compute_anomaly(df, metric='ndwi')
-    print("Test Result (Sharp Drop):")
-    for k, v in result.items():
-        print(f"  {k}: {v}")

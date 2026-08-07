@@ -1,9 +1,25 @@
 import os
+import config
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from pydantic import BaseModel
+from datetime import datetime, timedelta
+import pandas as pd
+
+from pipeline.compute_indices import compute_indices_for_site
+from pipeline.anomaly import compute_anomaly
+from pipeline.gee_client import initialize_ee
+from pipeline.image_export import get_dynamic_image_urls
+
+# Initialize Earth Engine globally
+initialize_ee()
+
+class AnalyzeRequest(BaseModel):
+    lat: float
+    lon: float
 
 from database import SessionLocal
 from models.site import Site
@@ -108,5 +124,68 @@ def get_site_details(site_id: int, db: Session = Depends(get_db)):
             "metric_used": score.metric_used,
             "computed_at": score.computed_at.isoformat() if score.computed_at else None
         } if score else None,
+        "observations": obs_list
+    }
+
+@app.post("/api/analyze")
+def analyze_coordinate(req: AnalyzeRequest):
+    """
+    Dynamically fetches data from GEE, computes anomaly, and returns image URLs without saving to DB.
+    """
+    END_DATE = datetime.now() - timedelta(days=7)
+    START_DATE = END_DATE - timedelta(days=365) 
+    
+    start_date_str = START_DATE.strftime('%Y-%m-%d')
+    end_date_str = END_DATE.strftime('%Y-%m-%d')
+    
+    # Avoid Indian Monsoons
+    baseline_start = '2025-01-01'
+    baseline_end = '2025-05-31'
+    current_start = '2026-01-01'
+    current_end = '2026-05-31'
+
+    # Compute Indices
+    df = compute_indices_for_site(req.lat, req.lon, start_date_str, end_date_str)
+    
+    if df.empty:
+        raise HTTPException(status_code=404, detail="No satellite data found for this coordinate.")
+
+    # Compute Anomaly
+    anomaly_res = compute_anomaly(df)
+    
+    # Get Live Image URLs
+    before_url, after_url = get_dynamic_image_urls(
+        req.lat, req.lon, baseline_start, baseline_end, current_start, current_end
+    )
+    
+    # Format observations
+    obs_list = []
+    for _, row in df.iterrows():
+        obs_list.append({
+            "date": row['date'],
+            "ndwi": float(row['ndwi']) if pd.notna(row['ndwi']) else None,
+            "ndvi": float(row['ndvi']) if pd.notna(row['ndvi']) else None,
+            "cloud_cover_pct": float(row['cloud_cover_pct']) if pd.notna(row['cloud_cover_pct']) else None
+        })
+
+    return {
+        "id": "dynamic",
+        "name": f"Custom Coordinate ({req.lat:.4f}, {req.lon:.4f})",
+        "latitude": req.lat,
+        "longitude": req.lon,
+        "site_type": "On-The-Fly Analysis",
+        "description": "This analysis was generated dynamically in real-time by pinging Google Earth Engine and running our anomaly detection model on the fly.",
+        "image_before_url": before_url,
+        "image_after_url": after_url,
+        "anomaly_score": {
+            "score": anomaly_res.get('score'),
+            "severity": anomaly_res.get('severity'),
+            "verdict_text": anomaly_res.get('verdict_text'),
+            "baseline_mean": anomaly_res.get('baseline_mean'),
+            "baseline_std": anomaly_res.get('baseline_std'),
+            "current_value": anomaly_res.get('current_value'),
+            "metric_used": anomaly_res.get('metric_used'),
+            "computed_at": datetime.now().isoformat()
+        },
         "observations": obs_list
     }

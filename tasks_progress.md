@@ -15,16 +15,16 @@
 - [x] **T13**: Next.js scaffold + Tailwind
 - [x] **T14**: MapView + SiteMarker
 - [x] **T15**: SiteListSidebar + Homepage
-- [ ] **T16**: Site Detail page shell
-- [ ] **T17**: RiskGauge component
-- [ ] **T18**: TimeSeriesChart component
-- [ ] **T19**: BeforeAfterImages + VerdictCard
-- [ ] **T20**: Connect frontend to real API
-- [ ] **T21**: Loading/error/empty states
-- [ ] **T22**: Mobile responsiveness pass
-- [ ] **T23**: Deploy frontend (Vercel)
-- [ ] **T24**: End-to-end test pass
-- [ ] **T25**: Demo script + rehearsal
-- [ ] **T26**: README + submission assets
-- [ ] **T27**: Compare view (stretch)
-- [ ] **T28**: PDF export (stretch)
+- [x] **T16**: Site Detail page shell
+- [x] **T17**: RiskGauge component
+- [x] **T18**: TimeSeriesChart component
+- [x] **T19**: BeforeAfterImages + VerdictCard
+- [x] **T20**: Connect frontend to real API
+- [x] **T21**: Loading/error/empty states
+- [x] **T22**: Mobile responsiveness pass
+- [x] **T23**: Deploy frontend (Vercel)
+- [x] **T24**: End-to-end test pass
+- [x] **T25**: Demo script + rehearsal
+- [x] **T26**: README + submission assets
+- [x] **T27**: Compare view (stretch)
+- [x] **T28**: PDF export (stretch)
