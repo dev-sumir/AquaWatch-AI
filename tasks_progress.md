@@ -1,0 +1,30 @@
+# AquaWatch AI - Tasks Progress
+
+- [x] **T01**: Repo + env setup (Folder structure, .env templates, Git init)
+- [ ] **T02**: Provision Supabase Postgres
+- [ ] **T03**: Define DB schema + migrations
+- [ ] **T04**: GEE auth + test query
+- [ ] **T05**: Finalize site list + coordinates
+- [ ] **T06**: Index computation pipeline
+- [ ] **T07**: Anomaly scoring logic
+- [ ] **T08**: Before/after image export
+- [ ] **T09**: Seed script (pipeline → DB)
+- [ ] **T10**: FastAPI skeleton + CORS
+- [ ] **T11**: `/api/sites` endpoints
+- [ ] **T12**: Deploy backend (Railway/Render)
+- [ ] **T13**: Next.js scaffold + Tailwind
+- [ ] **T14**: MapView + SiteMarker
+- [ ] **T15**: SiteListSidebar + Homepage
+- [ ] **T16**: Site Detail page shell
+- [ ] **T17**: RiskGauge component
+- [ ] **T18**: TimeSeriesChart component
+- [ ] **T19**: BeforeAfterImages + VerdictCard
+- [ ] **T20**: Connect frontend to real API
+- [ ] **T21**: Loading/error/empty states
+- [ ] **T22**: Mobile responsiveness pass
+- [ ] **T23**: Deploy frontend (Vercel)
+- [ ] **T24**: End-to-end test pass
+- [ ] **T25**: Demo script + rehearsal
+- [ ] **T26**: README + submission assets
+- [ ] **T27**: Compare view (stretch)
+- [ ] **T28**: PDF export (stretch)
