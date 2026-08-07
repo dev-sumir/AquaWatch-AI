@@ -11,7 +11,7 @@
 - [x] **T09**: Seed script (pipeline → DB)
 - [x] **T10**: FastAPI skeleton + CORS
 - [x] **T11**: `/api/sites` endpoints
-- [ ] **T12**: Deploy backend (Railway/Render)
+- [x] **T12**: Deploy backend (Railway/Render)
 - [ ] **T13**: Next.js scaffold + Tailwind
 - [ ] **T14**: MapView + SiteMarker
 - [ ] **T15**: SiteListSidebar + Homepage
