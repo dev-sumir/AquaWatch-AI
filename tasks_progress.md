@@ -12,9 +12,9 @@
 - [x] **T10**: FastAPI skeleton + CORS
 - [x] **T11**: `/api/sites` endpoints
 - [x] **T12**: Deploy backend (Railway/Render)
-- [ ] **T13**: Next.js scaffold + Tailwind
-- [ ] **T14**: MapView + SiteMarker
-- [ ] **T15**: SiteListSidebar + Homepage
+- [x] **T13**: Next.js scaffold + Tailwind
+- [x] **T14**: MapView + SiteMarker
+- [x] **T15**: SiteListSidebar + Homepage
 - [ ] **T16**: Site Detail page shell
 - [ ] **T17**: RiskGauge component
 - [ ] **T18**: TimeSeriesChart component
