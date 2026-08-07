@@ -11,6 +11,11 @@ def initialize_ee():
     encoded_creds = os.getenv("GEE_SERVICE_ACCOUNT_BASE64")
     if encoded_creds:
         print("Initializing Google Earth Engine API via Base64 ENV...")
+        
+        # Clean string and add missing padding to prevent 'Incorrect padding' error on Render
+        encoded_creds = encoded_creds.strip()
+        encoded_creds += "=" * ((4 - len(encoded_creds) % 4) % 4)
+        
         # Decode and write to a temporary file for ee to consume
         creds_json_str = base64.b64decode(encoded_creds).decode('utf-8')
         tmp_key_path = "/tmp/gee_key.json"
