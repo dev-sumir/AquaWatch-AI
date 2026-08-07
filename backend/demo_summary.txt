@@ -1,0 +1,8 @@
+AQUA WATCH AI - EXTRACTION DEMO
+===============================
+Site: Buddha Nullah (30.93725, 75.693023)
+Data Points Extracted: 49
+Anomaly Score: 3.17 (Low)
+Verdict: No significant change detected. Water clarity/levels (NDWI) remains within normal historical baseline.
+Before Image URL: https://earthengine.googleapis.com/v1/projects/earthengine-legacy/thumbnails/cdf4f5134b4969c5bc56c30f67ea1aef-1b49e31f64a791aaa0bb26251b8ac177:getPixels
+After Image URL: https://earthengine.googleapis.com/v1/projects/earthengine-legacy/thumbnails/c85f174fcac28ce0d0f9985f1854d2a0-6f682e2ba9f7e86a6ee6689e12dc3b54:getPixels

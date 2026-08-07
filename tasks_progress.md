@@ -7,8 +7,8 @@
 - [x] **T05**: Finalize site list + coordinates
 - [x] **T06**: Index computation pipeline
 - [x] **T07**: Anomaly scoring logic
-- [ ] **T08**: Before/after image export
-- [ ] **T09**: Seed script (pipeline → DB)
+- [x] **T08**: Before/after image export
+- [x] **T09**: Seed script (pipeline → DB)
 - [ ] **T10**: FastAPI skeleton + CORS
 - [ ] **T11**: `/api/sites` endpoints
 - [ ] **T12**: Deploy backend (Railway/Render)
