@@ -1,12 +1,12 @@
 # AquaWatch AI - Tasks Progress
 
 - [x] **T01**: Repo + env setup (Folder structure, .env templates, Git init)
-- [ ] **T02**: Provision Supabase Postgres
-- [ ] **T03**: Define DB schema + migrations
-- [ ] **T04**: GEE auth + test query
-- [ ] **T05**: Finalize site list + coordinates
-- [ ] **T06**: Index computation pipeline
-- [ ] **T07**: Anomaly scoring logic
+- [x] **T02**: Provision Supabase Postgres
+- [x] **T03**: Define DB schema + migrations
+- [x] **T04**: GEE auth + test query
+- [x] **T05**: Finalize site list + coordinates
+- [x] **T06**: Index computation pipeline
+- [x] **T07**: Anomaly scoring logic
 - [ ] **T08**: Before/after image export
 - [ ] **T09**: Seed script (pipeline → DB)
 - [ ] **T10**: FastAPI skeleton + CORS
