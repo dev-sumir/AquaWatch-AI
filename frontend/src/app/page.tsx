@@ -40,6 +40,11 @@ export default function Home() {
               ✨ <b>Interactive Mode</b>: Click any of the pins, or click <b>anywhere else on the map</b> (rivers, lakes, wetlands) to ping Google Earth Engine and generate an on-the-fly pollution anomaly analysis for that exact coordinate.
             </p>
           </div>
+          <div className="mt-3 flex gap-2">
+            <a href="/records" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+              📊 Monitoring Records Dashboard
+            </a>
+          </div>
         </div>
 
         <MapView sites={sites} />

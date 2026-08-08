@@ -1,10 +1,15 @@
 import os
+import uuid
+import re
 import config
-from fastapi import FastAPI, Depends, HTTPException
+from typing import Optional
+from io import BytesIO
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, case
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 import pandas as pd
@@ -25,6 +30,7 @@ from database import SessionLocal
 from models.site import Site
 from models.observation import Observation
 from models.anomaly_score import AnomalyScore
+from models.health_record import HealthRecord
 
 app = FastAPI(title="AquaWatch AI API")
 
@@ -41,6 +47,16 @@ app.add_middleware(
 static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# Upload directory for health record attachments
+UPLOAD_DIR = os.path.join(static_dir, "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Allowed file types
+ALLOWED_IMAGE_TYPES = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+ALLOWED_DOC_TYPES = {".pdf", ".doc", ".docx", ".csv", ".xlsx", ".txt"}
+ALLOWED_TYPES = ALLOWED_IMAGE_TYPES | ALLOWED_DOC_TYPES
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 # Database Dependency
 def get_db():
@@ -189,3 +205,454 @@ def analyze_coordinate(req: AnalyzeRequest):
         },
         "observations": obs_list
     }
+
+
+# ============================================================
+# HEALTH RECORDS API ENDPOINTS (T219 Bounty)
+# ============================================================
+
+def _serialize_health_record(r: HealthRecord, full: bool = False) -> dict:
+    """Serialize a HealthRecord to dict. If full=True, include all fields."""
+    data = {
+        "id": r.id,
+        "record_id": r.record_id,
+        "title": r.title,
+        "location": r.location,
+        "latitude": r.latitude,
+        "longitude": r.longitude,
+        "record_date": r.record_date.isoformat() if r.record_date else None,
+        "condition_type": r.condition_type,
+        "severity": r.severity,
+        "status": r.status,
+        "department": r.department,
+        "detected_anomaly": r.detected_anomaly,
+        "spectral_indicators": r.spectral_indicators,
+        "recommendations": r.recommendations,
+        "notes": r.notes,
+        "ndwi_value": r.ndwi_value,
+        "ndvi_value": r.ndvi_value,
+        "attachment_name": r.attachment_name,
+        "attachment_type": r.attachment_type,
+        "attachment_url": r.attachment_url,
+        "has_attachment": r.attachment_url is not None,
+    }
+    if full:
+        data.update({
+            "site_id": r.site_id,
+            "attachment_original_filename": r.attachment_original_filename,
+            "attachment_size_bytes": r.attachment_size_bytes,
+            "attachment_mime_type": r.attachment_mime_type,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+        })
+    return data
+
+
+@app.get("/api/health-records/filters")
+def get_filter_options(db: Session = Depends(get_db)):
+    """Returns available filter options for dropdowns."""
+    departments = db.query(HealthRecord.department).distinct().filter(HealthRecord.department.isnot(None)).all()
+    conditions = db.query(HealthRecord.condition_type).distinct().filter(HealthRecord.condition_type.isnot(None)).all()
+    return {
+        "departments": sorted([d[0] for d in departments]),
+        "conditions": sorted([c[0] for c in conditions]),
+        "severities": ["Low", "Moderate", "High", "Critical"]
+    }
+
+
+@app.get("/api/health-records")
+def get_health_records(
+    search: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    date_preset: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    department: Optional[str] = Query(None),
+    condition_type: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query("newest"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    """List health records with search, filter, and pagination support."""
+    query = db.query(HealthRecord)
+
+    # Text search across multiple fields
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (HealthRecord.title.ilike(search_term)) |
+            (HealthRecord.location.ilike(search_term)) |
+            (HealthRecord.detected_anomaly.ilike(search_term)) |
+            (HealthRecord.recommendations.ilike(search_term)) |
+            (HealthRecord.notes.ilike(search_term)) |
+            (HealthRecord.condition_type.ilike(search_term)) |
+            (HealthRecord.record_id.ilike(search_term))
+        )
+
+    # Severity filter
+    if severity:
+        query = query.filter(HealthRecord.severity == severity)
+
+    # Date filtering
+    if date_preset:
+        now = datetime.now()
+        if date_preset == "today":
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            query = query.filter(HealthRecord.record_date >= start)
+        elif date_preset == "7days":
+            query = query.filter(HealthRecord.record_date >= now - timedelta(days=7))
+        elif date_preset == "30days":
+            query = query.filter(HealthRecord.record_date >= now - timedelta(days=30))
+    elif date_from or date_to:
+        if date_from:
+            try:
+                query = query.filter(HealthRecord.record_date >= datetime.fromisoformat(date_from))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date_from format")
+        if date_to:
+            try:
+                query = query.filter(HealthRecord.record_date <= datetime.fromisoformat(date_to))
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date_to format")
+
+    # Department filter
+    if department:
+        query = query.filter(HealthRecord.department == department)
+
+    # Condition type filter
+    if condition_type:
+        query = query.filter(HealthRecord.condition_type == condition_type)
+
+    # Sorting
+    if sort_by == "oldest":
+        query = query.order_by(HealthRecord.record_date.asc())
+    elif sort_by == "severity":
+        severity_order = case(
+            (HealthRecord.severity == "Critical", 1),
+            (HealthRecord.severity == "High", 2),
+            (HealthRecord.severity == "Moderate", 3),
+            (HealthRecord.severity == "Low", 4),
+            else_=5
+        )
+        query = query.order_by(severity_order)
+    else:  # newest (default)
+        query = query.order_by(HealthRecord.record_date.desc())
+
+    total_count = query.count()
+    records = query.offset((page - 1) * limit).limit(limit).all()
+    total_pages = (total_count + limit - 1) // limit
+
+    return {
+        "records": [_serialize_health_record(r) for r in records],
+        "total": total_count,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages
+    }
+
+
+@app.get("/api/health-records/{record_id}")
+def get_health_record(record_id: str, db: Session = Depends(get_db)):
+    """Get full details for a single health record."""
+    record = db.query(HealthRecord).filter(HealthRecord.record_id == record_id).first()
+    if not record and record_id.isdigit():
+        record = db.query(HealthRecord).filter(HealthRecord.id == int(record_id)).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Health record not found")
+
+    return _serialize_health_record(record, full=True)
+
+
+@app.post("/api/health-records/{record_id}/attachment")
+async def upload_attachment(
+    record_id: str,
+    file: UploadFile = File(None),
+    url: Optional[str] = Form(None),
+    attachment_name: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """Upload a file or link a URL as attachment to a health record."""
+    record = db.query(HealthRecord).filter(HealthRecord.record_id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Health record not found")
+
+    # Remove existing attachment file if replacing
+    if record.attachment_url and record.attachment_type != "url":
+        old_relative = record.attachment_url.replace("/static/", "", 1)
+        old_path = os.path.join(static_dir, old_relative)
+        if os.path.exists(old_path):
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+
+    if file and file.filename:
+        # Validate file extension
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ALLOWED_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type '{ext}' not allowed. Allowed: {', '.join(sorted(ALLOWED_TYPES))}"
+            )
+
+        # Read and validate file size
+        contents = await file.read()
+        if len(contents) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large ({len(contents) / (1024*1024):.1f}MB). Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB"
+            )
+
+        # Sanitize original filename (Path Traversal Protection)
+        safe_original_name = re.sub(r'[^a-zA-Z0-9.\-_]', '_', file.filename)
+        
+        # Generate globally unique, safe filename for disk storage
+        safe_disk_name = f"{uuid.uuid4().hex}_{safe_original_name}"
+        file_path = os.path.join(UPLOAD_DIR, safe_disk_name)
+
+        with open(file_path, "wb") as f:
+            f.write(contents)
+
+        # Determine attachment type
+        att_type = "image" if ext in ALLOWED_IMAGE_TYPES else "document"
+
+        record.attachment_name = attachment_name or file.filename
+        record.attachment_type = att_type
+        record.attachment_url = f"/static/uploads/{safe_disk_name}"
+        record.attachment_original_filename = file.filename
+        record.attachment_size_bytes = len(contents)
+        record.attachment_mime_type = file.content_type
+        record.updated_at = datetime.now()
+
+    elif url:
+        # Validate URL
+        url_pattern = re.compile(r'^https?://[^\s/$.?#].[^\s]*$', re.IGNORECASE)
+        if not url_pattern.match(url):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid URL format. Must start with http:// or https://"
+            )
+
+        record.attachment_name = attachment_name or url
+        record.attachment_type = "url"
+        record.attachment_url = url
+        record.attachment_original_filename = None
+        record.attachment_size_bytes = None
+        record.attachment_mime_type = None
+        record.updated_at = datetime.now()
+    else:
+        raise HTTPException(status_code=400, detail="Either a file or URL must be provided")
+
+    db.commit()
+    db.refresh(record)
+
+    return {
+        "message": "Attachment added successfully",
+        "attachment_name": record.attachment_name,
+        "attachment_type": record.attachment_type,
+        "attachment_url": record.attachment_url
+    }
+
+
+@app.delete("/api/health-records/{record_id}/attachment")
+def delete_attachment(record_id: str, db: Session = Depends(get_db)):
+    """Remove the attachment from a health record."""
+    record = db.query(HealthRecord).filter(HealthRecord.record_id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Health record not found")
+    if not record.attachment_url:
+        raise HTTPException(status_code=404, detail="No attachment found on this record")
+
+    # Delete physical file if it's an upload
+    if record.attachment_type != "url":
+        old_relative = record.attachment_url.replace("/static/", "", 1)
+        file_path = os.path.join(static_dir, old_relative)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+
+    record.attachment_name = None
+    record.attachment_type = None
+    record.attachment_url = None
+    record.attachment_original_filename = None
+    record.attachment_size_bytes = None
+    record.attachment_mime_type = None
+    record.updated_at = datetime.now()
+    db.commit()
+
+    return {"message": "Attachment removed successfully"}
+
+
+@app.get("/api/health-records/{record_id}/report")
+def generate_report(record_id: str, db: Session = Depends(get_db)):
+    """Generate a professional PDF report for a health record."""
+    record = db.query(HealthRecord).filter(HealthRecord.record_id == record_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Health record not found")
+
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch, mm
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PDF generation library (reportlab) not installed. Run: pip install reportlab")
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        topMargin=30*mm, bottomMargin=25*mm,
+        leftMargin=25*mm, rightMargin=25*mm
+    )
+
+    styles = getSampleStyleSheet()
+
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle', parent=styles['Title'],
+        fontSize=24, textColor=colors.HexColor('#1e3a5f'), spaceAfter=6
+    )
+    subtitle_style = ParagraphStyle(
+        'Subtitle', parent=styles['Normal'],
+        fontSize=12, textColor=colors.HexColor('#64748b'), spaceAfter=20
+    )
+    section_style = ParagraphStyle(
+        'Section', parent=styles['Heading2'],
+        fontSize=14, textColor=colors.HexColor('#0f172a'),
+        spaceBefore=20, spaceAfter=10
+    )
+    body_style = ParagraphStyle(
+        'Body', parent=styles['Normal'],
+        fontSize=11, textColor=colors.HexColor('#334155'), leading=16
+    )
+    label_style = ParagraphStyle(
+        'Label', parent=styles['Normal'],
+        fontSize=10, textColor=colors.HexColor('#64748b'), leading=14
+    )
+    value_style = ParagraphStyle(
+        'Value', parent=styles['Normal'],
+        fontSize=11, textColor=colors.HexColor('#0f172a'), leading=16, fontName='Helvetica-Bold'
+    )
+    footer_style = ParagraphStyle(
+        'Footer', parent=styles['Normal'],
+        fontSize=9, textColor=colors.HexColor('#94a3b8'), alignment=TA_CENTER
+    )
+
+    story = []
+
+    # Header / Branding
+    story.append(Paragraph("AQUAWATCH AI", title_style))
+    story.append(Paragraph("Water Health Monitoring Report", subtitle_style))
+    story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#3b82f6'), spaceAfter=20))
+
+    # Record Metadata Table
+    meta_data = [
+        [Paragraph("Record ID", label_style), Paragraph(record.record_id or "N/A", value_style)],
+        [Paragraph("Monitoring Location", label_style), Paragraph(record.location or "N/A", value_style)],
+        [Paragraph("Date / Timestamp", label_style), Paragraph(
+            record.record_date.strftime('%B %d, %Y at %H:%M') if record.record_date else "N/A", value_style
+        )],
+        [Paragraph("Condition Type", label_style), Paragraph(record.condition_type or "N/A", value_style)],
+        [Paragraph("Severity", label_style), Paragraph(record.severity or "N/A", value_style)],
+        [Paragraph("Status", label_style), Paragraph(record.status or "N/A", value_style)],
+        [Paragraph("Department", label_style), Paragraph(record.department or "N/A", value_style)],
+    ]
+
+    if record.latitude and record.longitude:
+        meta_data.append([
+            Paragraph("Coordinates", label_style),
+            Paragraph(f"{record.latitude:.4f}, {record.longitude:.4f}", value_style)
+        ])
+
+    meta_table = Table(meta_data, colWidths=[150, 350])
+    meta_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+    ]))
+    story.append(meta_table)
+
+    # Spectral Indicators
+    if record.ndwi_value is not None or record.ndvi_value is not None or record.spectral_indicators:
+        story.append(Paragraph("Spectral / Environmental Indicators", section_style))
+        if record.ndwi_value is not None:
+            story.append(Paragraph(f"NDWI (Water Clarity Index): {record.ndwi_value:.4f}", body_style))
+        if record.ndvi_value is not None:
+            story.append(Paragraph(f"NDVI (Vegetation Index): {record.ndvi_value:.4f}", body_style))
+        if record.spectral_indicators:
+            story.append(Spacer(1, 6))
+            story.append(Paragraph(record.spectral_indicators, body_style))
+
+    # Detected Anomaly
+    story.append(Paragraph("Detected Anomaly", section_style))
+    story.append(Paragraph(record.detected_anomaly or "No anomaly details recorded.", body_style))
+
+    # Recommendations
+    story.append(Paragraph("Recommendations", section_style))
+    story.append(Paragraph(record.recommendations or "No recommendations provided.", body_style))
+
+    # Notes
+    story.append(Paragraph("Notes", section_style))
+    story.append(Paragraph(record.notes or "No additional notes.", body_style))
+
+    # Evidence / Attachment
+    story.append(Paragraph("Supporting Evidence / Attachment", section_style))
+    if record.attachment_url:
+        att_info = f"Attachment: {record.attachment_name or 'Unnamed'}"
+        if record.attachment_type == "url":
+            att_info += f"<br/>Link: <a href='{record.attachment_url}' color='blue'>{record.attachment_url}</a>"
+        elif record.attachment_type == "image":
+            att_info += f"<br/>Type: Image ({record.attachment_mime_type or 'unknown'})"
+            att_info += f"<br/>File: {record.attachment_original_filename or 'N/A'}"
+            # Try to include the image in the PDF
+            if record.attachment_url.startswith("/static/"):
+                img_path = os.path.join(static_dir, record.attachment_url.replace("/static/", "", 1))
+                if os.path.exists(img_path):
+                    try:
+                        from reportlab.platypus import Image as RLImage
+                        story.append(Paragraph(att_info, body_style))
+                        story.append(Spacer(1, 10))
+                        img = RLImage(img_path, width=4*inch, height=3*inch, kind='proportional')
+                        story.append(img)
+                        att_info = None  # Already added
+                    except Exception:
+                        att_info += "<br/><i>(Image could not be embedded in PDF)</i>"
+        else:
+            att_info += f"<br/>Type: Document ({record.attachment_mime_type or 'unknown'})"
+            att_info += f"<br/>File: {record.attachment_original_filename or 'N/A'}"
+
+        if att_info:
+            story.append(Paragraph(att_info, body_style))
+        if record.attachment_size_bytes:
+            size_kb = record.attachment_size_bytes / 1024
+            size_str = f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb/1024:.1f} MB"
+            story.append(Paragraph(f"Size: {size_str}", label_style))
+    else:
+        story.append(Paragraph("No supporting evidence attached.", body_style))
+
+    # Footer
+    story.append(Spacer(1, 40))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#e2e8f0'), spaceAfter=10))
+    story.append(Paragraph(
+        f"Generated by AquaWatch AI on {datetime.now().strftime('%B %d, %Y at %H:%M')}",
+        footer_style
+    ))
+    story.append(Paragraph("AI-Powered Satellite Water Health Monitoring System", footer_style))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    filename = f"AquaWatch_Report_{record.record_id}_{date_str}.pdf"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )

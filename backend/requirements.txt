@@ -7,3 +7,6 @@ pydantic
 earthengine-api
 pandas
 numpy
+python-multipart
+reportlab
+aiofiles
